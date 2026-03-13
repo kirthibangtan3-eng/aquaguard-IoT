@@ -14,12 +14,24 @@ import {
   BarChart3,
   MapPin,
   Battery,
-  Clock
+  Clock,
+  UserPlus
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
 import { Sensor, Alert } from "./types";
 import { getSensors, getAlerts, triggerPredictiveAnalysis, toggleMaintenanceMode } from "./services/sensorService";
 import { APP_NAME } from "./constants";
+
+// Fix for default marker icon in Leaflet
+// @ts-ignore
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
 
 export default function App() {
   const [sensors, setSensors] = useState<Sensor[]>([]);
@@ -228,10 +240,16 @@ export default function App() {
 
                 <div className="bg-white p-8 rounded-3xl border border-blue-100 shadow-sm">
                   <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-xl font-bold text-blue-900">Help & Support</h3>
-                    <button className="px-6 py-2 bg-blue-50 text-blue-600 rounded-full font-bold text-sm hover:bg-blue-100 transition-colors">
-                      Contact Support
-                    </button>
+                    <h3 className="text-xl font-bold text-blue-900">Get Started</h3>
+                    <div className="flex gap-4">
+                      <button className="px-6 py-2 bg-blue-600 text-white rounded-full font-bold text-sm hover:bg-blue-700 transition-colors flex items-center gap-2">
+                        <UserPlus className="w-4 h-4" />
+                        Sign Up Now
+                      </button>
+                      <button className="px-6 py-2 bg-blue-50 text-blue-600 rounded-full font-bold text-sm hover:bg-blue-100 transition-colors">
+                        Contact Support
+                      </button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-3 gap-6">
                     <HelpCard 
@@ -314,9 +332,9 @@ export default function App() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="h-full rounded-3xl border border-blue-200 bg-white overflow-hidden relative shadow-inner"
+                className="h-full rounded-3xl border border-blue-200 bg-white overflow-hidden relative shadow-lg"
               >
-                <div className="absolute top-6 right-6 z-20 flex items-center gap-2 bg-white/90 backdrop-blur-md border border-blue-100 px-3 py-1.5 rounded-full shadow-sm">
+                <div className="absolute top-6 right-6 z-[1000] flex items-center gap-2 bg-white/90 backdrop-blur-md border border-blue-100 px-3 py-1.5 rounded-full shadow-sm">
                   <motion.div 
                     animate={{ opacity: [1, 0.4, 1] }}
                     transition={{ duration: 2, repeat: Infinity }}
@@ -325,70 +343,78 @@ export default function App() {
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Live Updates</span>
                 </div>
 
-                <div className="absolute inset-0 opacity-40 pointer-events-none">
-                   {/* Mock Grid Map Background */}
-                   <div className="w-full h-full" style={{ backgroundImage: 'radial-gradient(circle, #bfdbfe 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
-                </div>
-                
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="relative w-[800px] h-[500px]">
-                    {sensors.map(sensor => (
-                      <motion.div
-                        key={sensor.id}
-                        className="absolute cursor-pointer group"
-                        style={{ 
-                          left: `${(sensor.location.lng + 74.05) * 10000}px`, 
-                          top: `${(40.75 - sensor.location.lat) * 10000}px` 
-                        }}
-                        whileHover={{ scale: 1.2 }}
-                        onClick={() => setSelectedSensor(sensor)}
-                      >
-                        <div className="relative">
-                          {sensor.status === 'flowing' && !sensor.isMaintenanceMode && (
-                            <motion.div 
-                              animate={{ scale: [1, 2], opacity: [0.5, 0] }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                              className="absolute inset-0 bg-emerald-400 rounded-full"
-                            />
-                          )}
-                          <div className={`w-5 h-5 rounded-full border-2 border-white shadow-lg relative z-10 ${
-                            sensor.isMaintenanceMode ? 'bg-blue-400 shadow-blue-200' :
-                            sensor.status === 'flowing' ? 'bg-emerald-500 shadow-emerald-200' : 
-                            sensor.status === 'no-flow' ? 'bg-red-500 shadow-red-200' : 'bg-amber-500 shadow-amber-200'
-                          }`}></div>
-                        </div>
-                        
-                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-3 py-2 bg-slate-900 text-white rounded-xl opacity-0 group-hover:opacity-100 transition-all shadow-xl pointer-events-none z-30 scale-95 group-hover:scale-100">
-                          <div className="flex flex-col gap-1 min-w-[120px]">
-                            <div className="flex justify-between items-center border-b border-white/10 pb-1 mb-1">
-                              <span className="text-[10px] font-black uppercase tracking-widest">{sensor.id}</span>
-                              <span className={`w-2 h-2 rounded-full ${
-                                sensor.isMaintenanceMode ? 'bg-blue-400' :
-                                sensor.status === 'flowing' ? 'bg-emerald-400' : 
-                                sensor.status === 'no-flow' ? 'bg-red-400' : 'bg-amber-400'
-                              }`}></span>
-                            </div>
-                            <div className="flex justify-between text-[9px] font-bold">
+                <MapContainer 
+                  center={[40.72, -74.01]} 
+                  zoom={13} 
+                  style={{ height: '100%', width: '100%' }}
+                  zoomControl={false}
+                >
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  />
+                  {sensors.map(sensor => (
+                    <Marker 
+                      key={sensor.id} 
+                      position={[sensor.location.lat, sensor.location.lng]}
+                      icon={L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `
+                          <div class="relative group">
+                            ${sensor.status === 'flowing' && !sensor.isMaintenanceMode ? `
+                              <div class="absolute inset-[-8px] bg-emerald-400 rounded-full opacity-50 animate-ping"></div>
+                            ` : ''}
+                            <div class="w-6 h-6 rounded-full border-2 border-white shadow-lg relative z-10 ${
+                              sensor.isMaintenanceMode ? 'bg-blue-400' :
+                              sensor.status === 'flowing' ? 'bg-emerald-500' : 
+                              sensor.status === 'no-flow' ? 'bg-red-500' : 'bg-amber-500'
+                            }"></div>
+                          </div>
+                        `,
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
+                      })}
+                      eventHandlers={{
+                        click: () => setSelectedSensor(sensor),
+                      }}
+                    >
+                      <Popup>
+                        <div className="p-2 min-w-[150px]">
+                          <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
+                            <span className="text-xs font-black text-blue-900 uppercase tracking-widest">{sensor.id}</span>
+                            <span className={`w-2 h-2 rounded-full ${
+                              sensor.isMaintenanceMode ? 'bg-blue-400' :
+                              sensor.status === 'flowing' ? 'bg-emerald-400' : 
+                              sensor.status === 'no-flow' ? 'bg-red-400' : 'bg-amber-400'
+                            }`}></span>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] font-bold">
                               <span className="text-slate-400 uppercase">Status</span>
-                              <span className="capitalize">{sensor.isMaintenanceMode ? 'Maintenance' : sensor.status}</span>
+                              <span className="capitalize text-slate-700">{sensor.isMaintenanceMode ? 'Maintenance' : sensor.status}</span>
                             </div>
-                            <div className="flex justify-between text-[9px] font-bold">
+                            <div className="flex justify-between text-[10px] font-bold">
                               <span className="text-slate-400 uppercase">Battery</span>
-                              <span>{sensor.battery}%</span>
+                              <span className="text-slate-700">{sensor.battery}%</span>
                             </div>
-                            <div className="flex justify-between text-[9px] font-bold">
+                            <div className="flex justify-between text-[10px] font-bold">
                               <span className="text-slate-400 uppercase">Section</span>
-                              <span className="truncate ml-2">{sensor.section}</span>
+                              <span className="truncate ml-2 text-slate-700">{sensor.section}</span>
                             </div>
                           </div>
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900"></div>
+                          <button 
+                            onClick={() => setSelectedSensor(sensor)}
+                            className="w-full mt-3 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            View Details
+                          </button>
                         </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
+                      </Popup>
+                    </Marker>
+                  ))}
+                </MapContainer>
 
-                <div className="absolute bottom-6 left-6 bg-white/90 backdrop-blur-md border border-blue-100 p-4 rounded-2xl shadow-lg space-y-2">
+                <div className="absolute bottom-6 left-6 z-[1000] bg-white/90 backdrop-blur-md border border-blue-100 p-4 rounded-2xl shadow-lg space-y-2">
                   <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
                     <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
                     <span>Normal Flow</span>

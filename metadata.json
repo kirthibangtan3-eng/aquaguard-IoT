@@ -1,5 +1,5 @@
 {
-  "name": "AquaGuard IoT",
+  "name": "AquaDetector",
   "description": "Smart Water Pipeline Monitoring System with GPS-enabled sensor nodes, real-time alerts, and map-based dashboard.",
   "requestFramePermissions": [
     "geolocation"

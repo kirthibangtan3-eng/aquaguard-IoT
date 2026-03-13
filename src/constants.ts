@@ -1,4 +1,4 @@
-export const APP_NAME = "AquaGuard IoT";
+export const APP_NAME = "AquaDetector";
 export const REFRESH_INTERVAL = 30000; // 30 seconds
 export const NO_FLOW_THRESHOLD = 120000; // 2 minutes in milliseconds
 
